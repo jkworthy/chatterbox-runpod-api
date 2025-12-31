@@ -1,33 +1,21 @@
 #!/bin/bash
-# Startup script for RunPod Chatterbox TTS API
+set -e
 
-set -e  # Exit on error
+echo "=== Starting Chatterbox RunPod API ==="
 
-echo "🚀 Starting Chatterbox TTS API setup..."
-
-# Clone API service repo
-echo "📥 Cloning API service repository..."
-git clone https://github.com/jkworthy/chatterbox-runpod-api.git /workspace || {
-    echo "⚠️  Repository already exists, continuing..."
-}
-
-cd /workspace
-
-# Install Python dependencies
-echo "📦 Installing Python dependencies..."
+# Install requirements
+echo "Installing requirements..."
 pip install -r requirements.txt
 
-# Clone and install Chatterbox
-echo "📥 Cloning Chatterbox..."
-if [ ! -d "/workspace/chatterbox" ]; then
-    git clone https://github.com/chenxwh/chatterbox.git /workspace/chatterbox
-fi
-
-cd /workspace
-echo "📦 Installing Chatterbox..."
+# Clone and install official Chatterbox
+echo "Installing Chatterbox..."
+rm -rf chatterbox
+git clone https://github.com/resemble-ai/chatterbox.git chatterbox
 pip install -e ./chatterbox
 
-# Start the API service
-echo "🎤 Starting Chatterbox TTS API..."
-python app.py
+# Create output directory
+mkdir -p /workspace/audio_output
 
+# Start the FastAPI server
+echo "Starting FastAPI server on port 8000..."
+python -u app.py
