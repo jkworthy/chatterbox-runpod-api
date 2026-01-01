@@ -18,19 +18,8 @@ from pydub import AudioSegment
 from pydub.effects import normalize
 import uvicorn
 
-# Import Chatterbox (adjust import path as needed)
-try:
-    from chatterbox.src.model import Chatterbox
-    from chatterbox.src.utils import load_audio
-except ImportError:
-    # Try alternative import paths
-    try:
-        import sys
-        sys.path.append('/workspace')
-        from src.model import Chatterbox
-        from src.utils import load_audio
-    except ImportError:
-        raise ImportError("Could not import Chatterbox. Check installation.")
+# Import Chatterbox
+from chatterbox.tts import ChatterboxTTS
 
 app = FastAPI(title="Chatterbox TTS API")
 
@@ -51,12 +40,23 @@ async def load_model():
     
     print("🔄 Loading Chatterbox model...")
     try:
-        # Initialize model (adjust path/config as needed)
-        model = Chatterbox()
+        import torch
+        # Determine device (CUDA for NVIDIA GPU, CPU fallback)
+        if torch.cuda.is_available():
+            device = "cuda"
+            print(f"📱 Using device: CUDA (GPU: {torch.cuda.get_device_name(0)})")
+        else:
+            device = "cpu"
+            print("📱 Using device: CPU (no GPU acceleration)")
+        
+        # Load model
+        model = ChatterboxTTS.from_pretrained(device=device)
         model_loaded = True
         print("✅ Model loaded successfully")
     except Exception as e:
         print(f"❌ Failed to load model: {e}")
+        import traceback
+        traceback.print_exc()
         model_loaded = False
 
 @app.get("/")
@@ -216,16 +216,18 @@ async def generate_batch(
                 })
                 continue
             
-            # Save as MP3
+            # Save as WAV first
             temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
             ta.save(temp_wav.name, wav, model.sr)
             
+            # Convert to MP3
             audio = AudioSegment.from_wav(temp_wav.name)
             audio = normalize(audio)
             
             output_path = AUDIO_STORAGE / f"{chunk_id}.mp3"
             audio.export(str(output_path), format='mp3', parameters=["-ar", "24000", "-ac", "1", "-q:a", "2"])
             
+            # Clean up temp WAV
             os.unlink(temp_wav.name)
             
             # Read and encode
@@ -269,5 +271,4 @@ async def download_audio(chunk_id: str):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
